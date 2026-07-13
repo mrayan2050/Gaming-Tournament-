@@ -1,0 +1,194 @@
+// ─────────────────────────────────────────────────────────────────────────
+// Prisma schema for BattleArena — Supabase PostgreSQL
+// Run after setting DATABASE_URL in server/.env:
+//   npx prisma migrate dev --name init
+//   npx prisma generate
+// ─────────────────────────────────────────────────────────────────────────
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  // Supabase recommends a separate direct connection for migrations
+  // (pooled connection via pgbouncer can't run migrations)
+  directUrl = env("DIRECT_URL")
+}
+
+// ─── USERS ──────────────────────────────────────────────────────────────
+// One row per player. Created on first login (Google or Mobile OTP).
+model User {
+  id          String   @id @default(uuid())
+  name        String?
+  email       String?  @unique
+  phone       String?  @unique
+  authProvider AuthProvider          // GOOGLE | PHONE
+  firebaseUid String   @unique       // Firebase Auth UID — links to Firebase user
+  avatarUrl   String?
+  isActive    Boolean  @default(true)
+  isAdmin     Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  wallet        Wallet?
+  registrations Registration[]
+  withdrawals   WithdrawRequest[]
+
+  @@map("users")
+}
+
+enum AuthProvider {
+  GOOGLE
+  PHONE
+}
+
+// ─── GAMES ──────────────────────────────────────────────────────────────
+// e.g. BGMI, Free Fire, Ludo — the catalog of supported games.
+model Game {
+  id          String   @id @default(uuid())
+  slug        String   @unique          // "bgmi", "freefire", "ludo" — used in URLs
+  name        String                    // "BGMI"
+  fullName    String?                   // "Battlegrounds Mobile India"
+  emoji       String?
+  description String?
+  color       String?                   // hex accent color for UI
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  tournaments Tournament[]
+
+  @@map("games")
+}
+
+// ─── TOURNAMENT ─────────────────────────────────────────────────────────
+model Tournament {
+  id              String           @id @default(uuid())
+  gameId          String
+  game            Game             @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  title           String
+  type            String                       // "Solo" | "Duo" | "Squad" | "1v1" etc.
+  entryFee        Int                          // in INR (paise-free, whole rupees)
+  prizePool       Int
+  totalSlots      Int
+  filledSlots     Int              @default(0)
+  scheduledDate   DateTime
+  rules           String[]                     // array of rule strings
+  prizeBreakdown  Json?                        // [{ rank: "1st", amount: 250 }, ...]
+  status          TournamentStatus @default(UPCOMING)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  // Match access details — only ever returned to users with a Registration
+  // row for this tournament (see tournamentsController.getRoomDetails).
+  // roomReleased is a manual admin switch: keep it false until shortly
+  // before the match starts, then flip it on to reveal it to joined players.
+  roomId          String?
+  roomPassword    String?
+  roomReleased    Boolean          @default(false)
+
+  registrations   Registration[]
+
+  @@index([gameId])
+  @@index([status])
+  @@map("tournaments")
+}
+
+enum TournamentStatus {
+  UPCOMING
+  LIVE
+  FULL
+  COMPLETED
+  CANCELLED
+}
+
+// ─── REGISTRATION ───────────────────────────────────────────────────────
+// Join record — a user paying entry fee to participate in a tournament.
+model Registration {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  entryFeePaid Int
+  rank         Int?                 // filled in after tournament completes
+  prizeWon     Int?     @default(0)
+  registeredAt DateTime @default(now())
+
+  @@unique([userId, tournamentId])  // one registration per user per tournament
+  @@index([tournamentId])
+  @@map("registrations")
+}
+
+// ─── WALLET ─────────────────────────────────────────────────────────────
+// One wallet per user. Two balances: depositBalance (usable for entry fees)
+// and winningsBalance (withdrawable cash prizes).
+model Wallet {
+  id               String   @id @default(uuid())
+  userId           String   @unique
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  depositBalance   Int      @default(0)   // INR, top-up money
+  winningsBalance  Int      @default(0)   // INR, prize money — withdrawable
+  updatedAt        DateTime @updatedAt
+
+  transactions     Transaction[]
+
+  @@map("wallets")
+}
+
+// ─── TRANSACTION ────────────────────────────────────────────────────────
+// Ledger of every wallet movement: deposits, entry fee debits, prize credits.
+model Transaction {
+  id        String          @id @default(uuid())
+  walletId  String
+  wallet    Wallet          @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  type      TransactionType
+  amount    Int                       // always positive; `type` indicates direction
+  note      String?
+  refId     String?                   // e.g. tournamentId or paymentOrderId
+  createdAt DateTime        @default(now())
+
+  @@index([walletId])
+  @@map("transactions")
+}
+
+enum TransactionType {
+  DEPOSIT          // money added via payment gateway
+  ENTRY_FEE        // debited to join a tournament
+  PRIZE_CREDIT      // winnings credited
+  WITHDRAWAL       // sent to bank
+  REFUND
+}
+
+// ─── WITHDRAW REQUEST ───────────────────────────────────────────────────
+// User requests payout of winningsBalance to their bank account.
+model WithdrawRequest {
+  id            String           @id @default(uuid())
+  userId        String
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  amount        Int
+  bankAccount   String?                       // masked account number
+  ifsc          String?
+  upiId         String?
+  status        WithdrawStatus   @default(PENDING)
+  requestedAt   DateTime         @default(now())
+  processedAt   DateTime?
+  remarks       String?
+
+  @@index([userId])
+  @@index([status])
+  @@map("withdraw_requests")
+}
+
+enum WithdrawStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  REJECTED
+}

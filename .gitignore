@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+server/node_modules/
+
+# Environment variables — NEVER commit real secrets
+.env
+.env.local
+server/.env
+server/.env.local
+
+# Firebase Admin service account key — NEVER commit this
+server/serviceAccountKey.json
+
+# Build output
+dist/
+build/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor folders
+.vscode/
+.idea/
+
+# Prisma
+server/prisma/dev.db
