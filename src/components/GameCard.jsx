@@ -27,10 +27,7 @@ export default function GameCard({ game }) {
             style={{ background: game.color }}
           />
 
-          {/* Emoji badge */}
-          <span className="absolute bottom-3 left-3 text-3xl drop-shadow-lg transform transition-transform duration-300 group-hover:scale-110">
-            {game.emoji}
-          </span>
+          
 
           {/* Tournament count badge */}
           <div className="absolute top-3 right-3 px-2 py-1 bg-black/50 backdrop-blur-sm rounded-full text-xs text-white font-medium border border-white/10">
@@ -48,8 +45,8 @@ export default function GameCard({ game }) {
 
           {/* Stats row */}
           <div className="flex items-center gap-3 mt-4 mb-4">
-            <span className="stat-pill">🏆 {game.totalTournaments} tournaments</span>
-            <span className="stat-pill">👥 {game.activePlayers}</span>
+            <span className="stat-pill"> {game.totalTournaments} tournaments</span>
+            <span className="stat-pill"> {game.activePlayers}</span>
           </div>
 
           {/* CTA */}
