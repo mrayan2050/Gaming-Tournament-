@@ -42,7 +42,7 @@ export default function TournamentCard({ tournament }) {
           {/* Header */}
           <div className="flex items-start justify-between gap-2 mb-4">
             <div className="flex items-center gap-2">
-              <span className="text-2xl">{game?.emoji}</span>
+              
               <div>
                 <p className="text-xs text-gray-500">{game?.name}</p>
                 <h3 className="font-display font-bold text-white text-lg leading-tight group-hover:text-orange-400 transition-colors">
@@ -75,7 +75,7 @@ export default function TournamentCard({ tournament }) {
                 <FiUsers className="w-3 h-3" /> Slots
               </span>
               <span className={isAlmostFull ? 'text-red-400 font-semibold' : 'text-gray-400'}>
-                {tournament.filledSlots}/{tournament.slots} {isAlmostFull && '🔥 Almost full!'}
+                {tournament.filledSlots}/{tournament.slots} {isAlmostFull && ' Almost full!'}
               </span>
             </div>
             <div className="h-1.5 bg-dark-600 rounded-full overflow-hidden">
